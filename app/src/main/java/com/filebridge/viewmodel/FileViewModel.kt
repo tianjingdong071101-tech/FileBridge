@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -29,13 +30,21 @@ class FileViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "FileViewModel"
+        private const val PREFS_NAME = "filebridge_prefs"
+        private const val KEY_AUTO_START = "auto_start_http"
     }
+
+    private val prefs: SharedPreferences =
+        application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     val files: StateFlow<List<UploadedFile>> = repository.allFiles
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _serverRunning = MutableStateFlow(HttpServerService.isRunning)
     val serverRunning: StateFlow<Boolean> = _serverRunning.asStateFlow()
+
+    private val _autoStartEnabled = MutableStateFlow(prefs.getBoolean(KEY_AUTO_START, true))
+    val autoStartEnabled: StateFlow<Boolean> = _autoStartEnabled.asStateFlow()
 
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
@@ -53,8 +62,26 @@ class FileViewModel @Inject constructor(
         }
     }
 
+    fun importFiles() {
+        viewModelScope.launch {
+            try {
+                val imported = repository.importExistingFiles()
+                if (imported > 0) {
+                    _toastMessage.value = "已导入 $imported 个已有文件"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to import files", e)
+            }
+        }
+    }
+
     fun refreshServerStatus() {
         _serverRunning.value = HttpServerService.isRunning
+    }
+
+    fun setAutoStartEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
+        _autoStartEnabled.value = enabled
     }
 
     fun uploadFile(uri: Uri) {

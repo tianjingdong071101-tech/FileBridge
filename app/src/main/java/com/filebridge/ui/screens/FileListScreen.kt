@@ -29,6 +29,7 @@ fun FileListScreen(
 ) {
     val files by viewModel.files.collectAsStateWithLifecycle()
     val serverRunning by viewModel.serverRunning.collectAsStateWithLifecycle()
+    val autoStartEnabled by viewModel.autoStartEnabled.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -52,11 +53,11 @@ fun FileListScreen(
     }
 
     LaunchedEffect(Unit) {
+        viewModel.importFiles()
         viewModel.refreshServerStatus()
-        // 暂时停用自动启动，手动测试阶段用
-        // if (!viewModel.serverRunning.value) {
-        //     viewModel.startHttpServer()
-        // }
+        if (autoStartEnabled && !viewModel.serverRunning.value) {
+            viewModel.startHttpServer()
+        }
     }
 
     Scaffold(

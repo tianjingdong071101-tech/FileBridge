@@ -19,6 +19,7 @@ fun SettingsScreen(
     viewModel: FileViewModel = hiltViewModel()
 ) {
     val serverRunning by viewModel.serverRunning.collectAsStateWithLifecycle()
+    val autoStartEnabled by viewModel.autoStartEnabled.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.refreshServerStatus()
@@ -71,6 +72,31 @@ fun SettingsScreen(
                             onCheckedChange = { enabled ->
                                 if (enabled) viewModel.startHttpServer()
                                 else viewModel.stopHttpServer()
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "自动启动",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "打开 App 时自动启动 HTTP 服务",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = autoStartEnabled,
+                            onCheckedChange = { enabled ->
+                                viewModel.setAutoStartEnabled(enabled)
                             }
                         )
                     }
