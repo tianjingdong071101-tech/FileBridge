@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.filebridge.data.db.FileDao
 import com.filebridge.data.repository.FileRepository
@@ -38,148 +39,198 @@ class HttpServerService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     companion object {
+        const val TAG = "HttpServerService"
         const val CHANNEL_ID = "filebridge_http"
         const val NOTIFICATION_ID = 1
         const val DEFAULT_PORT = 8765
+        var isRunning = false
+            private set
     }
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
+        try {
+            createNotificationChannel()
+            startForeground(NOTIFICATION_ID, createNotification())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start foreground", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val port = intent?.getIntExtra("port", DEFAULT_PORT) ?: DEFAULT_PORT
-        startServer(port)
+        try {
+            startServer(port)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start server", e)
+        }
         return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        server?.stop(1000, 5000)
-        scope.cancel()
+        try {
+            server?.stop(1000, 5000)
+            scope.cancel()
+            isRunning = false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping server", e)
+        }
         super.onDestroy()
     }
 
     private fun startServer(port: Int) {
         if (server != null) return
 
-        server = embeddedServer(CIO, port = port, host = "0.0.0.0") {
-            install(ContentNegotiation) {
-                json(Json {
-                    prettyPrint = true
-                    isLenient = true
-                    ignoreUnknownKeys = true
-                })
-            }
-
-            routing {
-                get("/health") {
-                    call.respond(mapOf("status" to "ok"))
+        try {
+            server = embeddedServer(CIO, port = port, host = "0.0.0.0") {
+                install(ContentNegotiation) {
+                    json(Json {
+                        prettyPrint = true
+                        isLenient = true
+                        ignoreUnknownKeys = true
+                    })
                 }
 
-                get("/files") {
-                    val files = fileDao.getAllFiles().first()
-                    val response = files.map { file ->
-                        FileResponse(
-                            id = file.id,
-                            fileName = file.fileName,
-                            fileSize = file.fileSize,
-                            mimeType = file.mimeType,
-                            termuxPath = file.filePath
-                        )
+                routing {
+                    get("/health") {
+                        call.respond(mapOf("status" to "ok"))
                     }
-                    call.respond(response)
-                }
 
-                get("/files/{id}") {
-                    val id = call.parameters["id"]?.toIntOrNull()
-                    if (id == null) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid ID"))
-                        return@get
-                    }
-                    val file = repository.getFileById(id)
-                    if (file == null) {
-                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "File not found"))
-                        return@get
-                    }
-                    call.respondFile(File(file.filePath))
-                }
-
-                get("/files/{id}/info") {
-                    val id = call.parameters["id"]?.toIntOrNull()
-                    if (id == null) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid ID"))
-                        return@get
-                    }
-                    val file = repository.getFileById(id)
-                    if (file == null) {
-                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "File not found"))
-                        return@get
-                    }
-                    call.respond(
-                        FileInfoResponse(
-                            id = file.id,
-                            fileName = file.fileName,
-                            fileSize = file.fileSize,
-                            mimeType = file.mimeType,
-                            termuxPath = file.filePath,
-                            createdAt = file.createdAt
-                        )
-                    )
-                }
-
-                delete("/files/{id}") {
-                    val id = call.parameters["id"]?.toIntOrNull()
-                    if (id == null) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid ID"))
-                        return@delete
-                    }
-                    val success = repository.deleteFile(id)
-                    if (success) {
-                        call.respond(mapOf("success" to true))
-                    } else {
-                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "File not found"))
-                    }
-                }
-
-                post("/upload") {
-                    val multipart = call.receiveMultipart()
-                    var uploadedId: Int? = null
-
-                    multipart.forEachPart { part ->
-                        if (part is PartData.FileItem) {
-                            val fileBytes = part.streamProvider().readBytes()
-                            val tempFile = File(cacheDir, "upload_${System.currentTimeMillis()}")
-                            tempFile.writeBytes(fileBytes)
-
-                            val result = repository.uploadFile(android.net.Uri.fromFile(tempFile))
-                            result.onSuccess { file ->
-                                uploadedId = file.id
+                    get("/files") {
+                        try {
+                            val files = fileDao.getAllFiles().first()
+                            val response = files.map { file ->
+                                FileResponse(
+                                    id = file.id,
+                                    fileName = file.fileName,
+                                    fileSize = file.fileSize,
+                                    mimeType = file.mimeType,
+                                    termuxPath = file.filePath
+                                )
                             }
-                            tempFile.delete()
+                            call.respond(response)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error listing files", e)
+                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
                         }
-                        part.dispose()
                     }
 
-                    if (uploadedId != null) {
-                        val file = repository.getFileById(uploadedId!!)
-                        call.respond(
-                            HttpStatusCode.Created,
-                            UploadResponse(
-                                id = uploadedId!!,
-                                fileName = file?.fileName ?: "",
-                                termuxPath = file?.filePath ?: ""
+                    get("/files/{id}") {
+                        try {
+                            val id = call.parameters["id"]?.toIntOrNull()
+                            if (id == null) {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid ID"))
+                                return@get
+                            }
+                            val file = repository.getFileById(id)
+                            if (file == null) {
+                                call.respond(HttpStatusCode.NotFound, mapOf("error" to "File not found"))
+                                return@get
+                            }
+                            call.respondFile(File(file.filePath))
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error getting file", e)
+                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                        }
+                    }
+
+                    get("/files/{id}/info") {
+                        try {
+                            val id = call.parameters["id"]?.toIntOrNull()
+                            if (id == null) {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid ID"))
+                                return@get
+                            }
+                            val file = repository.getFileById(id)
+                            if (file == null) {
+                                call.respond(HttpStatusCode.NotFound, mapOf("error" to "File not found"))
+                                return@get
+                            }
+                            call.respond(
+                                FileInfoResponse(
+                                    id = file.id,
+                                    fileName = file.fileName,
+                                    fileSize = file.fileSize,
+                                    mimeType = file.mimeType,
+                                    termuxPath = file.filePath,
+                                    createdAt = file.createdAt
+                                )
                             )
-                        )
-                    } else {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "No file uploaded"))
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error getting file info", e)
+                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                        }
+                    }
+
+                    delete("/files/{id}") {
+                        try {
+                            val id = call.parameters["id"]?.toIntOrNull()
+                            if (id == null) {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid ID"))
+                                return@delete
+                            }
+                            val success = repository.deleteFile(id)
+                            if (success) {
+                                call.respond(mapOf("success" to true))
+                            } else {
+                                call.respond(HttpStatusCode.NotFound, mapOf("error" to "File not found"))
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error deleting file", e)
+                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                        }
+                    }
+
+                    post("/upload") {
+                        try {
+                            val multipart = call.receiveMultipart()
+                            var uploadedId: Int? = null
+
+                            multipart.forEachPart { part ->
+                                if (part is PartData.FileItem) {
+                                    val fileBytes = part.streamProvider().readBytes()
+                                    val tempFile = File(cacheDir, "upload_${System.currentTimeMillis()}")
+                                    tempFile.writeBytes(fileBytes)
+
+                                    val result = repository.uploadFile(android.net.Uri.fromFile(tempFile))
+                                    result.onSuccess { file ->
+                                        uploadedId = file.id
+                                    }
+                                    tempFile.delete()
+                                }
+                                part.dispose()
+                            }
+
+                            if (uploadedId != null) {
+                                val file = repository.getFileById(uploadedId!!)
+                                call.respond(
+                                    HttpStatusCode.Created,
+                                    UploadResponse(
+                                        id = uploadedId!!,
+                                        fileName = file?.fileName ?: "",
+                                        termuxPath = file?.filePath ?: ""
+                                    )
+                                )
+                            } else {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "No file uploaded"))
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error uploading file", e)
+                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                        }
                     }
                 }
+            }.also {
+                it.start(wait = false)
+                isRunning = true
+                Log.i(TAG, "HTTP server started on port $port")
             }
-        }.also { it.start(wait = false) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create/start server", e)
+            isRunning = false
+        }
     }
 
     private fun createNotificationChannel() {
@@ -189,7 +240,7 @@ class HttpServerService : Service() {
                 "FileBridge HTTP Server",
                 NotificationManager.IMPORTANCE_LOW
             )
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 

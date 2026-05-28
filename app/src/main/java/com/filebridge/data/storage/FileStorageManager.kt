@@ -2,7 +2,9 @@ package com.filebridge.data.storage
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
 import android.provider.OpenableColumns
+import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
@@ -13,13 +15,24 @@ class FileStorageManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
+        private const val TAG = "FileStorageManager"
         const val DEFAULT_DIR = "/sdcard/OpenCodeFiles"
     }
 
     private val storageDir: File
         get() {
             val dir = File(DEFAULT_DIR)
-            if (!dir.exists()) dir.mkdirs()
+            try {
+                if (!dir.exists()) {
+                    dir.mkdirs()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create storage directory", e)
+                // Fallback to app internal storage
+                val fallback = File(context.getExternalFilesDir(null), "OpenCodeFiles")
+                if (!fallback.exists()) fallback.mkdirs()
+                return fallback
+            }
             return dir
         }
 
@@ -45,19 +58,36 @@ class FileStorageManager @Inject constructor(
     }
 
     fun deleteFile(filePath: String): Boolean {
-        val file = File(filePath)
-        return if (file.exists()) file.delete() else false
+        return try {
+            val file = File(filePath)
+            if (file.exists()) file.delete() else false
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete file", e)
+            false
+        }
     }
 
     fun getStorageDirPath(): String = storageDir.absolutePath
 
+    fun isStorageAvailable(): Boolean {
+        return try {
+            Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun getFileName(uri: Uri): String {
         var name = "unknown_file"
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (cursor.moveToFirst() && nameIndex >= 0) {
-                name = cursor.getString(nameIndex)
+        try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst() && nameIndex >= 0) {
+                    name = cursor.getString(nameIndex) ?: "unknown_file"
+                }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get file name", e)
         }
         return name
     }
