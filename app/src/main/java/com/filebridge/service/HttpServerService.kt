@@ -80,10 +80,10 @@ class HttpServerService : Service() {
                 }
 
                 get("/files") {
-                    val files = withContext(Dispatchers.IO) {
+                    val files: List<com.filebridge.data.db.UploadedFile> = withContext(Dispatchers.IO) {
                         fileDao.getAllFiles().first()
                     }
-                    call.respond(files.map { file ->
+                    val response = files.map { file: com.filebridge.data.db.UploadedFile ->
                         FileResponse(
                             id = file.id,
                             fileName = file.fileName,
@@ -91,7 +91,8 @@ class HttpServerService : Service() {
                             mimeType = file.mimeType,
                             termuxPath = file.filePath
                         )
-                    })
+                    }
+                    call.respond(response)
                 }
 
                 get("/files/{id}") {
