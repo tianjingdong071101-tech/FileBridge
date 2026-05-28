@@ -34,7 +34,7 @@ class FileViewModel @Inject constructor(
     val files: StateFlow<List<UploadedFile>> = repository.allFiles
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val _serverRunning = MutableStateFlow(false)
+    private val _serverRunning = MutableStateFlow(HttpServerService.isRunning)
     val serverRunning: StateFlow<Boolean> = _serverRunning.asStateFlow()
 
     private val _toastMessage = MutableStateFlow<String?>(null)
@@ -51,6 +51,10 @@ class FileViewModel @Inject constructor(
                 Log.e(TAG, "Failed to import existing files", e)
             }
         }
+    }
+
+    fun refreshServerStatus() {
+        _serverRunning.value = HttpServerService.isRunning
     }
 
     fun uploadFile(uri: Uri) {

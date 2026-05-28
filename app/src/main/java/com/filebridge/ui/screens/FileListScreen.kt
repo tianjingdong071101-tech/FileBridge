@@ -52,7 +52,8 @@ fun FileListScreen(
     }
 
     LaunchedEffect(Unit) {
-        if (!serverRunning) {
+        viewModel.refreshServerStatus()
+        if (!viewModel.serverRunning.value) {
             viewModel.startHttpServer()
         }
     }

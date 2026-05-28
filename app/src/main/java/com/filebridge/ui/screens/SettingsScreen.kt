@@ -20,6 +20,10 @@ fun SettingsScreen(
 ) {
     val serverRunning by viewModel.serverRunning.collectAsStateWithLifecycle()
 
+    LaunchedEffect(Unit) {
+        viewModel.refreshServerStatus()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
