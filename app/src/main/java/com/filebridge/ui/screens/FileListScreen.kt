@@ -53,9 +53,10 @@ fun FileListScreen(
 
     LaunchedEffect(Unit) {
         viewModel.refreshServerStatus()
-        if (!viewModel.serverRunning.value) {
-            viewModel.startHttpServer()
-        }
+        // 暂时停用自动启动，手动测试阶段用
+        // if (!viewModel.serverRunning.value) {
+        //     viewModel.startHttpServer()
+        // }
     }
 
     Scaffold(
