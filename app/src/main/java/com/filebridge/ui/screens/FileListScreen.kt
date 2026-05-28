@@ -17,7 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.filebridge.ui.components.FileItem
 import com.filebridge.viewmodel.FileViewModel
 
@@ -29,10 +32,10 @@ fun FileListScreen(
 ) {
     val files by viewModel.files.collectAsStateWithLifecycle()
     val serverRunning by viewModel.serverRunning.collectAsStateWithLifecycle()
-    val autoStartEnabled by viewModel.autoStartEnabled.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -45,18 +48,18 @@ fun FileListScreen(
         }
     }
 
+    // Re-scan files and refresh status every time screen becomes visible
+    LaunchedEffect(lifecycleOwner.lifecycle) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.importFiles()
+            viewModel.refreshServerStatus()
+        }
+    }
+
     LaunchedEffect(toastMessage) {
         toastMessage?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearToast()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.importFiles()
-        viewModel.refreshServerStatus()
-        if (autoStartEnabled && !viewModel.serverRunning.value) {
-            viewModel.startHttpServer()
         }
     }
 

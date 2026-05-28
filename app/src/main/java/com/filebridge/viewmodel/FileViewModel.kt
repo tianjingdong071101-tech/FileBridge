@@ -52,23 +52,22 @@ class FileViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             try {
-                val imported = repository.importExistingFiles()
-                if (imported > 0) {
-                    _toastMessage.value = "已导入 $imported 个已有文件"
-                }
+                repository.importExistingFiles()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to import existing files", e)
             }
+        }
+
+        // Auto-start HTTP server if enabled
+        if (_autoStartEnabled.value && !HttpServerService.isRunning) {
+            startHttpServer()
         }
     }
 
     fun importFiles() {
         viewModelScope.launch {
             try {
-                val imported = repository.importExistingFiles()
-                if (imported > 0) {
-                    _toastMessage.value = "已导入 $imported 个已有文件"
-                }
+                repository.importExistingFiles()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to import files", e)
             }
