@@ -22,6 +22,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -80,10 +81,8 @@ class HttpServerService : Service() {
                 }
 
                 get("/files") {
-                    val files: List<com.filebridge.data.db.UploadedFile> = withContext(Dispatchers.IO) {
-                        fileDao.getAllFiles().first()
-                    }
-                    val response = files.map { file: com.filebridge.data.db.UploadedFile ->
+                    val files = fileDao.getAllFiles().first()
+                    val response = files.map { file ->
                         FileResponse(
                             id = file.id,
                             fileName = file.fileName,
