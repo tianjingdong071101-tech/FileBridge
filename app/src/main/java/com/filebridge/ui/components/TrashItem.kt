@@ -17,6 +17,7 @@ import com.filebridge.data.db.DeletedFile
 fun TrashItem(
     file: DeletedFile,
     isDuplicateWithActive: Boolean,
+    isDuplicateInTrash: Boolean,
     onRestore: () -> Unit,
     onPermanentDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -70,6 +71,20 @@ fun TrashItem(
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                    if (isDuplicateInTrash) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = MaterialTheme.shapes.extraSmall,
+                            color = MaterialTheme.colorScheme.errorContainer
+                        ) {
+                            Text(
+                                text = "内部重复",
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
                             )
                         }
                     }

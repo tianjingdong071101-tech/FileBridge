@@ -56,6 +56,9 @@ class FileViewModel @Inject constructor(
     private val _deletedDuplicateHashes = MutableStateFlow<Set<String>>(emptySet())
     val deletedDuplicateHashes: StateFlow<Set<String>> = _deletedDuplicateHashes.asStateFlow()
 
+    private val _trashDuplicateHashes = MutableStateFlow<Set<String>>(emptySet())
+    val trashDuplicateHashes: StateFlow<Set<String>> = _trashDuplicateHashes.asStateFlow()
+
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
 
@@ -94,6 +97,7 @@ class FileViewModel @Inject constructor(
             try {
                 _duplicateHashes.value = repository.getDuplicateHashes()
                 _deletedDuplicateHashes.value = repository.getDeletedDuplicateHashes()
+                _trashDuplicateHashes.value = repository.getTrashInternalDuplicateHashes()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to refresh duplicate hashes", e)
             }

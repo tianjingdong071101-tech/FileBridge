@@ -24,6 +24,7 @@ fun TrashScreen(
 ) {
     val deletedFiles by viewModel.deletedFiles.collectAsStateWithLifecycle()
     val deletedDuplicateHashes by viewModel.deletedDuplicateHashes.collectAsStateWithLifecycle()
+    val trashDuplicateHashes by viewModel.trashDuplicateHashes.collectAsStateWithLifecycle()
     var showEmptyTrashDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -83,6 +84,7 @@ fun TrashScreen(
                     TrashItem(
                         file = file,
                         isDuplicateWithActive = file.fileHash in deletedDuplicateHashes,
+                        isDuplicateInTrash = file.fileHash in trashDuplicateHashes,
                         onRestore = { viewModel.restoreFile(file.originalId) },
                         onPermanentDelete = { viewModel.permanentlyDeleteFile(file.originalId) }
                     )

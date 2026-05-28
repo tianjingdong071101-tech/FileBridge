@@ -24,7 +24,7 @@ class FileRepository @Inject constructor(
     val deletedFiles: Flow<List<DeletedFile>> = fileDao.getDeletedFiles()
 
     suspend fun uploadFile(uri: Uri): Result<UploadedFile> = runCatching {
-        val id = fileDao.getFileCount() + 1
+        val id = fileDao.getMaxId() + 1
         val stored = storageManager.copyFileToStorage(uri, id).getOrThrow()
 
         val file = UploadedFile(
@@ -107,19 +107,18 @@ class FileRepository @Inject constructor(
         if (!dir.exists()) {
             dir.mkdirs()
             Log.i(TAG, "Created storage directory: ${dir.absolutePath}")
-            return 0
         }
 
         val trashDir = File(FileStorageManager.TRASH_DIR)
         if (!trashDir.exists()) trashDir.mkdirs()
 
-        val existingFiles = dir.listFiles() ?: return 0
+        val existingFiles = dir.listFiles()?.filter { it.isFile } ?: emptyList()
         val dbFiles = fileDao.getAllFilesOnce()
         val dbPaths = dbFiles.map { it.filePath }.toSet()
 
         var imported = 0
         for (file in existingFiles) {
-            if (file.isFile && file.absolutePath !in dbPaths) {
+            if (file.absolutePath !in dbPaths) {
                 try {
                     val name = file.name
                     val mimeType = getMimeType(name)
@@ -144,7 +143,63 @@ class FileRepository @Inject constructor(
         if (imported > 0) {
             Log.i(TAG, "Imported $imported existing files")
         }
+
+        // 扫描回收站目录
+        importTrashFiles()
+
         return imported
+    }
+
+    private suspend fun importTrashFiles() {
+        val trashDir = File(FileStorageManager.TRASH_DIR)
+        if (!trashDir.exists()) return
+
+        val trashFiles = trashDir.listFiles()?.filter { it.isFile } ?: return
+        val dbDeleted = fileDao.getDeletedFilesOnce()
+        val dbDeletedPaths = dbDeleted.map { it.filePath }.toSet()
+
+        var imported = 0
+        for (file in trashFiles) {
+            if (file.absolutePath in dbDeletedPaths) continue
+
+            try {
+                val fullName = file.name
+                // 解析 originalId: 文件名格式为 {id}_{originalFileName}
+                val firstUnderscore = fullName.indexOf('_')
+                if (firstUnderscore <= 0) continue
+
+                val originalId = fullName.substring(0, firstUnderscore).toIntOrNull() ?: continue
+                val originalName = fullName.substring(firstUnderscore + 1)
+                val originalPath = "${FileStorageManager.DEFAULT_DIR}/${originalName}"
+                val mimeType = getMimeType(originalName)
+                val hash = computeFileHash(file)
+
+                // 检查是否已存在同 ID 的记录
+                val existingDeleted = fileDao.getDeletedFileById(originalId)
+                if (existingDeleted != null) continue
+
+                val deletedFile = DeletedFile(
+                    originalId = originalId,
+                    fileName = originalName,
+                    filePath = file.absolutePath,
+                    originalPath = originalPath,
+                    fileSize = file.length(),
+                    mimeType = mimeType,
+                    fileHash = hash,
+                    createdAt = file.lastModified(),
+                    deletedAt = file.lastModified()
+                )
+                fileDao.insertDeletedFile(deletedFile)
+                imported++
+                Log.i(TAG, "Imported trash file: $fullName (originalId=$originalId)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to import trash file: ${file.name}", e)
+            }
+        }
+
+        if (imported > 0) {
+            Log.i(TAG, "Imported $imported trash files")
+        }
     }
 
     suspend fun getDuplicateHashes(): Set<String> {
@@ -160,6 +215,13 @@ class FileRepository @Inject constructor(
         return deleted.filter { it.fileHash.isNotEmpty() && it.fileHash in activeHashes }
             .map { it.fileHash }
             .toSet()
+    }
+
+    suspend fun getTrashInternalDuplicateHashes(): Set<String> {
+        val deleted = fileDao.getDeletedFilesOnce()
+        return deleted.groupBy { it.fileHash }
+            .filter { it.key.isNotEmpty() && it.value.size > 1 }
+            .keys
     }
 
     private fun computeFileHash(file: File): String {

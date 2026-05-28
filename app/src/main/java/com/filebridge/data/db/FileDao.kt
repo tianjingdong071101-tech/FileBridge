@@ -51,4 +51,13 @@ interface FileDao {
 
     @Query("SELECT * FROM deleted_files WHERE fileHash = :hash AND fileHash != ''")
     suspend fun getDeletedFilesByHash(hash: String): List<DeletedFile>
+
+    @Query("""
+        SELECT COALESCE(MAX(id), 0) FROM (
+            SELECT id FROM files
+            UNION ALL
+            SELECT originalId AS id FROM deleted_files
+        )
+    """)
+    suspend fun getMaxId(): Int
 }
