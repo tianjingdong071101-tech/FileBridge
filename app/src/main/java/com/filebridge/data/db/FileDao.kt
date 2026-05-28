@@ -10,6 +10,9 @@ interface FileDao {
     @Query("SELECT * FROM files ORDER BY id ASC")
     fun getAllFiles(): Flow<List<UploadedFile>>
 
+    @Query("SELECT * FROM files ORDER BY id ASC")
+    suspend fun getAllFilesOnce(): List<UploadedFile>
+
     @Query("SELECT * FROM files WHERE id = :id")
     suspend fun getFileById(id: Int): UploadedFile?
 

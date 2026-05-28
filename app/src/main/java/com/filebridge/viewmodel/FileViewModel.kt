@@ -40,6 +40,19 @@ class FileViewModel @Inject constructor(
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            try {
+                val imported = repository.importExistingFiles()
+                if (imported > 0) {
+                    _toastMessage.value = "已导入 $imported 个已有文件"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to import existing files", e)
+            }
+        }
+    }
+
     fun uploadFile(uri: Uri) {
         viewModelScope.launch {
             try {
