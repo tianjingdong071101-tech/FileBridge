@@ -66,14 +66,22 @@ class FileViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.importExistingFiles()
-                refreshDuplicateHashes()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to import existing files", e)
             }
+            try {
+                refreshDuplicateHashes()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh duplicate hashes", e)
+            }
         }
 
-        if (_autoStartEnabled.value && !HttpServerService.isRunning) {
-            startHttpServer()
+        try {
+            if (_autoStartEnabled.value && !HttpServerService.isRunning) {
+                startHttpServer()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to auto-start HTTP server", e)
         }
     }
 
@@ -234,6 +242,14 @@ class FileViewModel @Inject constructor(
 
     fun getDuplicateColorIndex(fileHash: String): Int {
         return _duplicateHashes.value.keys.indexOf(fileHash)
+    }
+
+    fun getDeletedDuplicateColorIndex(fileHash: String): Int {
+        return _deletedDuplicateHashes.value.keys.indexOf(fileHash)
+    }
+
+    fun getTrashDuplicateColorIndex(fileHash: String): Int {
+        return _trashDuplicateHashes.value.keys.indexOf(fileHash)
     }
 
     fun getDeletedDuplicateTargetId(originalId: Int, fileHash: String): Int? {

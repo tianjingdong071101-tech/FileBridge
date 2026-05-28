@@ -68,8 +68,19 @@ class FileStorageManager @Inject constructor(
             if (!src.exists()) return null
             val trashDir = File(TRASH_DIR)
             if (!trashDir.exists()) trashDir.mkdirs()
-            val dest = File(trashDir, "${fileId}_${src.name}")
-            if (src.renameTo(dest)) dest.absolutePath else null
+            var destName = "${fileId}_${src.name}"
+            var dest = File(trashDir, destName)
+            if (dest.exists()) {
+                destName = "${fileId}_${System.currentTimeMillis()}_${src.name}"
+                dest = File(trashDir, destName)
+            }
+            src.inputStream().use { input ->
+                dest.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            src.delete()
+            dest.absolutePath
         } catch (e: Exception) {
             Log.e(TAG, "Failed to move to trash", e)
             null

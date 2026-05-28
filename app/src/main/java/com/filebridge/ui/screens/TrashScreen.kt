@@ -82,9 +82,9 @@ fun TrashScreen(
                     TrashItem(
                         file = file,
                         duplicateWithActiveTargetId = viewModel.getDeletedDuplicateTargetId(file.originalId, file.fileHash),
-                        duplicateWithActiveColorIndex = viewModel.getDuplicateColorIndex(file.fileHash),
+                        duplicateWithActiveColorIndex = viewModel.getDeletedDuplicateColorIndex(file.fileHash),
                         duplicateInTrashTargetId = viewModel.getTrashDuplicateTargetId(file.originalId, file.fileHash),
-                        duplicateInTrashColorIndex = viewModel.getDuplicateColorIndex(file.fileHash),
+                        duplicateInTrashColorIndex = viewModel.getTrashDuplicateColorIndex(file.fileHash),
                         onRestore = { viewModel.restoreFile(file.originalId) },
                         onPermanentDelete = { viewModel.permanentlyDeleteFile(file.originalId) }
                     )

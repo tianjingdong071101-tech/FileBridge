@@ -45,10 +45,8 @@ class FileRepository @Inject constructor(
         val file = fileDao.getFileById(id) ?: return false
         val trashPath = storageManager.moveToTrash(file.filePath, id)
         if (trashPath == null) {
-            Log.e(TAG, "Failed to move file to trash, falling back to permanent delete")
-            storageManager.deleteFile(file.filePath)
-            fileDao.deleteFile(id)
-            return true
+            Log.e(TAG, "Failed to move file to trash, aborting delete")
+            return false
         }
         val deletedFile = DeletedFile(
             originalId = file.id,
@@ -167,11 +165,15 @@ class FileRepository @Inject constructor(
             try {
                 val fullName = file.name
                 // 解析 originalId: 文件名格式为 {id}_{originalFileName}
-                val firstUnderscore = fullName.indexOf('_')
-                if (firstUnderscore <= 0) continue
+                // id 是纯数字，originalName 可能包含 _
+                var idEnd = 0
+                while (idEnd < fullName.length && fullName[idEnd].isDigit()) {
+                    idEnd++
+                }
+                if (idEnd == 0 || idEnd >= fullName.length || fullName[idEnd] != '_') continue
 
-                val originalId = fullName.substring(0, firstUnderscore).toIntOrNull() ?: continue
-                val originalName = fullName.substring(firstUnderscore + 1)
+                val originalId = fullName.substring(0, idEnd).toIntOrNull() ?: continue
+                val originalName = fullName.substring(idEnd + 1)
                 val originalPath = "${FileStorageManager.DEFAULT_DIR}/${originalName}"
                 val mimeType = getMimeType(originalName)
                 val hash = computeFileHash(file)
@@ -217,9 +219,13 @@ class FileRepository @Inject constructor(
         val activeHashMap = activeFiles.groupBy { it.fileHash }
             .filter { it.key.isNotEmpty() }
             .mapValues { entry -> entry.value.map { it.id } }
-        return deleted.filter { it.fileHash.isNotEmpty() && it.fileHash in activeHashMap }
-            .groupBy { it.fileHash }
-            .mapValues { entry -> activeHashMap[entry.key]!! }
+        val result = mutableMapOf<String, List<Int>>()
+        for (deletedFile in deleted) {
+            if (deletedFile.fileHash.isNotEmpty() && deletedFile.fileHash in activeHashMap) {
+                result[deletedFile.fileHash] = activeHashMap[deletedFile.fileHash]!!
+            }
+        }
+        return result
     }
 
     suspend fun getTrashInternalDuplicateHashes(): Map<String, List<Int>> {
