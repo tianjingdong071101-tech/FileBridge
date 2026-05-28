@@ -3,6 +3,7 @@ package com.filebridge.di
 import android.content.Context
 import androidx.room.Room
 import com.filebridge.data.db.AppDatabase
+import com.filebridge.data.db.AppDatabase.Companion.MIGRATION_1_2
 import com.filebridge.data.db.FileDao
 import dagger.Module
 import dagger.Provides
@@ -22,7 +23,9 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "filebridge.db"
-        ).build()
+        )
+            .addMigrations(MIGRATION_1_2)
+            .build()
     }
 
     @Provides

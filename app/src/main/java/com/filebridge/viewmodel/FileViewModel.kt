@@ -10,6 +10,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.filebridge.data.db.DeletedFile
 import com.filebridge.data.db.UploadedFile
 import com.filebridge.data.repository.FileRepository
 import com.filebridge.service.HttpServerService
@@ -40,11 +41,20 @@ class FileViewModel @Inject constructor(
     val files: StateFlow<List<UploadedFile>> = repository.allFiles
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    val deletedFiles: StateFlow<List<DeletedFile>> = repository.deletedFiles
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     private val _serverRunning = MutableStateFlow(HttpServerService.isRunning)
     val serverRunning: StateFlow<Boolean> = _serverRunning.asStateFlow()
 
     private val _autoStartEnabled = MutableStateFlow(prefs.getBoolean(KEY_AUTO_START, true))
     val autoStartEnabled: StateFlow<Boolean> = _autoStartEnabled.asStateFlow()
+
+    private val _duplicateHashes = MutableStateFlow<Set<String>>(emptySet())
+    val duplicateHashes: StateFlow<Set<String>> = _duplicateHashes.asStateFlow()
+
+    private val _deletedDuplicateHashes = MutableStateFlow<Set<String>>(emptySet())
+    val deletedDuplicateHashes: StateFlow<Set<String>> = _deletedDuplicateHashes.asStateFlow()
 
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
@@ -53,12 +63,12 @@ class FileViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.importExistingFiles()
+                refreshDuplicateHashes()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to import existing files", e)
             }
         }
 
-        // Auto-start HTTP server if enabled
         if (_autoStartEnabled.value && !HttpServerService.isRunning) {
             startHttpServer()
         }
@@ -68,6 +78,7 @@ class FileViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.importExistingFiles()
+                refreshDuplicateHashes()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to import files", e)
             }
@@ -76,6 +87,17 @@ class FileViewModel @Inject constructor(
 
     fun refreshServerStatus() {
         _serverRunning.value = HttpServerService.isRunning
+    }
+
+    fun refreshDuplicateHashes() {
+        viewModelScope.launch {
+            try {
+                _duplicateHashes.value = repository.getDuplicateHashes()
+                _deletedDuplicateHashes.value = repository.getDeletedDuplicateHashes()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh duplicate hashes", e)
+            }
+        }
     }
 
     fun setAutoStartEnabled(enabled: Boolean) {
@@ -89,6 +111,7 @@ class FileViewModel @Inject constructor(
                 repository.uploadFile(uri)
                     .onSuccess { file ->
                         _toastMessage.value = "已上传: #${file.id} ${file.fileName}"
+                        refreshDuplicateHashes()
                     }
                     .onFailure { e ->
                         Log.e(TAG, "Upload failed", e)
@@ -106,9 +129,53 @@ class FileViewModel @Inject constructor(
             try {
                 repository.deleteFile(id)
                 _toastMessage.value = "已删除: #$id"
+                refreshDuplicateHashes()
             } catch (e: Exception) {
                 Log.e(TAG, "Delete failed", e)
                 _toastMessage.value = "删除失败: ${e.message}"
+            }
+        }
+    }
+
+    fun restoreFile(id: Int) {
+        viewModelScope.launch {
+            try {
+                val success = repository.restoreFile(id)
+                if (success) {
+                    _toastMessage.value = "已恢复: #$id"
+                    refreshDuplicateHashes()
+                } else {
+                    _toastMessage.value = "恢复失败"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Restore failed", e)
+                _toastMessage.value = "恢复失败: ${e.message}"
+            }
+        }
+    }
+
+    fun permanentlyDeleteFile(id: Int) {
+        viewModelScope.launch {
+            try {
+                repository.permanentlyDeleteFile(id)
+                _toastMessage.value = "已永久删除: #$id"
+                refreshDuplicateHashes()
+            } catch (e: Exception) {
+                Log.e(TAG, "Permanent delete failed", e)
+                _toastMessage.value = "永久删除失败: ${e.message}"
+            }
+        }
+    }
+
+    fun emptyTrash() {
+        viewModelScope.launch {
+            try {
+                repository.emptyTrash()
+                _toastMessage.value = "回收站已清空"
+                refreshDuplicateHashes()
+            } catch (e: Exception) {
+                Log.e(TAG, "Empty trash failed", e)
+                _toastMessage.value = "清空失败: ${e.message}"
             }
         }
     }

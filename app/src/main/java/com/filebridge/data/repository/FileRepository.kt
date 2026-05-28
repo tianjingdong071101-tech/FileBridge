@@ -2,6 +2,7 @@ package com.filebridge.data.repository
 
 import android.net.Uri
 import android.util.Log
+import com.filebridge.data.db.DeletedFile
 import com.filebridge.data.db.FileDao
 import com.filebridge.data.db.UploadedFile
 import com.filebridge.data.storage.FileStorageManager
@@ -20,6 +21,7 @@ class FileRepository @Inject constructor(
     }
 
     val allFiles: Flow<List<UploadedFile>> = fileDao.getAllFiles()
+    val deletedFiles: Flow<List<DeletedFile>> = fileDao.getDeletedFiles()
 
     suspend fun uploadFile(uri: Uri): Result<UploadedFile> = runCatching {
         val id = fileDao.getFileCount() + 1
@@ -30,7 +32,8 @@ class FileRepository @Inject constructor(
             fileName = stored.fileName,
             filePath = stored.filePath,
             fileSize = stored.fileSize,
-            mimeType = stored.mimeType
+            mimeType = stored.mimeType,
+            fileHash = stored.fileHash
         )
         val insertedId = fileDao.insertFile(file)
         file.copy(id = insertedId.toInt())
@@ -40,9 +43,61 @@ class FileRepository @Inject constructor(
 
     suspend fun deleteFile(id: Int): Boolean {
         val file = fileDao.getFileById(id) ?: return false
-        storageManager.deleteFile(file.filePath)
+        val trashPath = storageManager.moveToTrash(file.filePath, id)
+        if (trashPath == null) {
+            Log.e(TAG, "Failed to move file to trash, falling back to permanent delete")
+            storageManager.deleteFile(file.filePath)
+            fileDao.deleteFile(id)
+            return true
+        }
+        val deletedFile = DeletedFile(
+            originalId = file.id,
+            fileName = file.fileName,
+            filePath = trashPath,
+            originalPath = file.filePath,
+            fileSize = file.fileSize,
+            mimeType = file.mimeType,
+            fileHash = file.fileHash,
+            createdAt = file.createdAt,
+            deletedAt = System.currentTimeMillis()
+        )
+        fileDao.insertDeletedFile(deletedFile)
         fileDao.deleteFile(id)
         return true
+    }
+
+    suspend fun restoreFile(id: Int): Boolean {
+        val deleted = fileDao.getDeletedFileById(id) ?: return false
+        val success = storageManager.restoreFromTrash(deleted.filePath, deleted.originalPath)
+        if (!success) {
+            Log.e(TAG, "Failed to restore file from trash")
+            return false
+        }
+        val restored = UploadedFile(
+            id = deleted.originalId,
+            fileName = deleted.fileName,
+            filePath = deleted.originalPath,
+            fileSize = deleted.fileSize,
+            mimeType = deleted.mimeType,
+            fileHash = deleted.fileHash,
+            createdAt = deleted.createdAt
+        )
+        fileDao.insertFile(restored)
+        fileDao.permanentlyDeleteFile(id)
+        return true
+    }
+
+    suspend fun permanentlyDeleteFile(id: Int): Boolean {
+        val deleted = fileDao.getDeletedFileById(id) ?: return false
+        storageManager.permanentlyDelete(deleted.filePath)
+        fileDao.permanentlyDeleteFile(id)
+        return true
+    }
+
+    suspend fun emptyTrash() {
+        val files = fileDao.getDeletedFilesOnce()
+        files.forEach { storageManager.permanentlyDelete(it.filePath) }
+        fileDao.emptyTrash()
     }
 
     suspend fun getFileCount(): Int = fileDao.getFileCount()
@@ -55,6 +110,9 @@ class FileRepository @Inject constructor(
             return 0
         }
 
+        val trashDir = File(FileStorageManager.TRASH_DIR)
+        if (!trashDir.exists()) trashDir.mkdirs()
+
         val existingFiles = dir.listFiles() ?: return 0
         val dbFiles = fileDao.getAllFilesOnce()
         val dbPaths = dbFiles.map { it.filePath }.toSet()
@@ -65,12 +123,14 @@ class FileRepository @Inject constructor(
                 try {
                     val name = file.name
                     val mimeType = getMimeType(name)
+                    val hash = computeFileHash(file)
                     val uploadedFile = UploadedFile(
                         id = 0,
                         fileName = name,
                         filePath = file.absolutePath,
                         fileSize = file.length(),
-                        mimeType = mimeType
+                        mimeType = mimeType,
+                        fileHash = hash
                     )
                     fileDao.insertFile(uploadedFile)
                     imported++
@@ -85,6 +145,38 @@ class FileRepository @Inject constructor(
             Log.i(TAG, "Imported $imported existing files")
         }
         return imported
+    }
+
+    suspend fun getDuplicateHashes(): Set<String> {
+        val files = fileDao.getAllFilesOnce()
+        val hashCounts = files.groupBy { it.fileHash }.filter { it.key.isNotEmpty() && it.value.size > 1 }
+        return hashCounts.keys
+    }
+
+    suspend fun getDeletedDuplicateHashes(): Set<String> {
+        val deleted = fileDao.getDeletedFilesOnce()
+        val activeFiles = fileDao.getAllFilesOnce()
+        val activeHashes = activeFiles.map { it.fileHash }.toSet()
+        return deleted.filter { it.fileHash.isNotEmpty() && it.fileHash in activeHashes }
+            .map { it.fileHash }
+            .toSet()
+    }
+
+    private fun computeFileHash(file: File): String {
+        return try {
+            val digest = java.security.MessageDigest.getInstance("MD5")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(8192)
+                var read: Int
+                while (input.read(buffer).also { read = it } != -1) {
+                    digest.update(buffer, 0, read)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to compute file hash", e)
+            ""
+        }
     }
 
     private fun getMimeType(fileName: String): String {

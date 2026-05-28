@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,20 +18,22 @@ class FileStorageManager @Inject constructor(
     companion object {
         private const val TAG = "FileStorageManager"
         const val DEFAULT_DIR = "/sdcard/OpenCodeFiles"
+        const val TRASH_DIR = "$DEFAULT_DIR/.trash"
     }
 
     private val storageDir: File
         get() {
             val dir = File(DEFAULT_DIR)
+            val trashDir = File(TRASH_DIR)
             try {
-                if (!dir.exists()) {
-                    dir.mkdirs()
-                }
+                if (!dir.exists()) dir.mkdirs()
+                if (!trashDir.exists()) trashDir.mkdirs()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to create storage directory", e)
-                // Fallback to app internal storage
                 val fallback = File(context.getExternalFilesDir(null), "OpenCodeFiles")
+                val fallbackTrash = File(fallback, ".trash")
                 if (!fallback.exists()) fallback.mkdirs()
+                if (!fallbackTrash.exists()) fallbackTrash.mkdirs()
                 return fallback
             }
             return dir
@@ -48,13 +51,86 @@ class FileStorageManager @Inject constructor(
         } ?: throw IllegalStateException("Cannot open input stream for URI")
 
         val mimeType = context.contentResolver.getType(sourceUri) ?: "application/octet-stream"
+        val hash = computeFileHash(destFile)
 
         StoredFile(
             fileName = fileName,
             filePath = destFile.absolutePath,
             fileSize = destFile.length(),
-            mimeType = mimeType
+            mimeType = mimeType,
+            fileHash = hash
         )
+    }
+
+    fun moveToTrash(filePath: String, fileId: Int): String? {
+        return try {
+            val src = File(filePath)
+            if (!src.exists()) return null
+            val trashDir = File(TRASH_DIR)
+            if (!trashDir.exists()) trashDir.mkdirs()
+            val dest = File(trashDir, "${fileId}_${src.name}")
+            if (src.renameTo(dest)) dest.absolutePath else null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to move to trash", e)
+            null
+        }
+    }
+
+    fun restoreFromTrash(trashPath: String, originalPath: String): Boolean {
+        return try {
+            val src = File(trashPath)
+            if (!src.exists()) return false
+            val dest = File(originalPath)
+            dest.parentFile?.mkdirs()
+            src.renameTo(dest)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to restore from trash", e)
+            false
+        }
+    }
+
+    fun permanentlyDelete(filePath: String): Boolean {
+        return try {
+            val file = File(filePath)
+            if (file.exists()) file.delete() else false
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to permanently delete", e)
+            false
+        }
+    }
+
+    fun computeHash(uri: Uri): String {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val digest = MessageDigest.getInstance("MD5")
+                val buffer = ByteArray(8192)
+                var read: Int
+                while (input.read(buffer).also { read = it } != -1) {
+                    digest.update(buffer, 0, read)
+                }
+                digest.digest().joinToString("") { "%02x".format(it) }
+            } ?: ""
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to compute hash", e)
+            ""
+        }
+    }
+
+    private fun computeFileHash(file: File): String {
+        return try {
+            val digest = MessageDigest.getInstance("MD5")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(8192)
+                var read: Int
+                while (input.read(buffer).also { read = it } != -1) {
+                    digest.update(buffer, 0, read)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to compute file hash", e)
+            ""
+        }
     }
 
     fun deleteFile(filePath: String): Boolean {
@@ -97,5 +173,6 @@ data class StoredFile(
     val fileName: String,
     val filePath: String,
     val fileSize: Long,
-    val mimeType: String
+    val mimeType: String,
+    val fileHash: String = ""
 )

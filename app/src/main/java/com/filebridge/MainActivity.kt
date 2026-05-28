@@ -19,6 +19,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.filebridge.ui.screens.FileListScreen
 import com.filebridge.ui.screens.SettingsScreen
+import com.filebridge.ui.screens.TrashScreen
 import com.filebridge.ui.theme.FileBridgeTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -54,11 +55,18 @@ class MainActivity : ComponentActivity() {
                     NavHost(navController = navController, startDestination = "files") {
                         composable("files") {
                             FileListScreen(
-                                onNavigateToSettings = { navController.navigate("settings") }
+                                onNavigateToSettings = { navController.navigate("settings") },
+                                onNavigateToTrash = { navController.navigate("trash") }
                             )
                         }
                         composable("settings") {
                             SettingsScreen(
+                                onBack = { navController.popBackStack() },
+                                onNavigateToTrash = { navController.navigate("trash") }
+                            )
+                        }
+                        composable("trash") {
+                            TrashScreen(
                                 onBack = { navController.popBackStack() }
                             )
                         }

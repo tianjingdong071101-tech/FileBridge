@@ -1,10 +1,14 @@
 package com.filebridge.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -16,10 +20,12 @@ import com.filebridge.viewmodel.FileViewModel
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigateToTrash: () -> Unit,
     viewModel: FileViewModel = hiltViewModel()
 ) {
     val serverRunning by viewModel.serverRunning.collectAsStateWithLifecycle()
     val autoStartEnabled by viewModel.autoStartEnabled.collectAsStateWithLifecycle()
+    val deletedFiles by viewModel.deletedFiles.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.refreshServerStatus()
@@ -100,6 +106,45 @@ fun SettingsScreen(
                             }
                         )
                     }
+                }
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToTrash() }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "最近删除",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "${deletedFiles.size} 个文件",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

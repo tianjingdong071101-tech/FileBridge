@@ -2,8 +2,8 @@ package com.filebridge.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,14 +11,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.filebridge.data.db.UploadedFile
+import com.filebridge.data.db.DeletedFile
 
 @Composable
-fun FileItem(
-    file: UploadedFile,
-    isDuplicate: Boolean,
-    onCopy: () -> Unit,
-    onDelete: () -> Unit,
+fun TrashItem(
+    file: DeletedFile,
+    isDuplicateWithActive: Boolean,
+    onRestore: () -> Unit,
+    onPermanentDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -35,15 +35,15 @@ fun FileItem(
         ) {
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.primaryContainer,
+                color = MaterialTheme.colorScheme.secondaryContainer,
                 modifier = Modifier.width(40.dp)
             ) {
                 Text(
-                    text = "#${file.id}",
+                    text = "#${file.originalId}",
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             }
 
@@ -59,14 +59,14 @@ fun FileItem(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    if (isDuplicate) {
+                    if (isDuplicateWithActive) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             shape = MaterialTheme.shapes.extraSmall,
                             color = MaterialTheme.colorScheme.tertiaryContainer
                         ) {
                             Text(
-                                text = "重复",
+                                text = "与现有重复",
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -74,25 +74,33 @@ fun FileItem(
                         }
                     }
                 }
-                Text(
-                    text = formatFileSize(file.fileSize),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row {
+                    Text(
+                        text = formatFileSize(file.fileSize),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "删除于 ${formatTime(file.deletedAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
-            IconButton(onClick = onCopy) {
+            IconButton(onClick = onRestore) {
                 Icon(
-                    Icons.Default.ContentCopy,
-                    contentDescription = "复制",
+                    Icons.Default.Restore,
+                    contentDescription = "恢复",
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
 
             IconButton(onClick = { showDeleteDialog = true }) {
                 Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "删除",
+                    Icons.Default.DeleteForever,
+                    contentDescription = "永久删除",
                     tint = MaterialTheme.colorScheme.error
                 )
             }
@@ -102,14 +110,14 @@ fun FileItem(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("确认删除") },
-            text = { Text("确定要删除 #${file.id} ${file.fileName} 吗？") },
+            title = { Text("永久删除") },
+            text = { Text("确定要永久删除 #${file.originalId} ${file.fileName} 吗？此操作不可恢复。") },
             confirmButton = {
                 TextButton(onClick = {
-                    onDelete()
+                    onPermanentDelete()
                     showDeleteDialog = false
                 }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text("永久删除", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -127,5 +135,17 @@ private fun formatFileSize(bytes: Long): String {
         bytes < 1024 * 1024 -> "${bytes / 1024} KB"
         bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
         else -> "${bytes / (1024 * 1024 * 1024)} GB"
+    }
+}
+
+private fun formatTime(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    return when {
+        diff < 60_000 -> "刚刚"
+        diff < 3600_000 -> "${diff / 60_000}分钟前"
+        diff < 86400_000 -> "${diff / 3600_000}小时前"
+        diff < 604800_000 -> "${diff / 86400_000}天前"
+        else -> "${diff / 604800_000}周前"
     }
 }

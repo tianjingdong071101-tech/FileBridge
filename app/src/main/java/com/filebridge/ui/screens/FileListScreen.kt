@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,7 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.filebridge.ui.components.FileItem
@@ -28,10 +29,12 @@ import com.filebridge.viewmodel.FileViewModel
 @Composable
 fun FileListScreen(
     onNavigateToSettings: () -> Unit,
+    onNavigateToTrash: () -> Unit,
     viewModel: FileViewModel = hiltViewModel()
 ) {
     val files by viewModel.files.collectAsStateWithLifecycle()
     val serverRunning by viewModel.serverRunning.collectAsStateWithLifecycle()
+    val duplicateHashes by viewModel.duplicateHashes.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -48,11 +51,11 @@ fun FileListScreen(
         }
     }
 
-    // Re-scan files and refresh status every time screen becomes visible
     LaunchedEffect(lifecycleOwner.lifecycle) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             viewModel.importFiles()
             viewModel.refreshServerStatus()
+            viewModel.refreshDuplicateHashes()
         }
     }
 
@@ -69,6 +72,9 @@ fun FileListScreen(
             TopAppBar(
                 title = { Text("FileBridge") },
                 actions = {
+                    IconButton(onClick = onNavigateToTrash) {
+                        Icon(Icons.Default.Delete, contentDescription = "最近删除")
+                    }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "设置")
                     }
@@ -137,6 +143,7 @@ fun FileListScreen(
                     items(files, key = { it.id }) { file ->
                         FileItem(
                             file = file,
+                            isDuplicate = file.fileHash in duplicateHashes,
                             onCopy = { viewModel.copyToClipboard(file.id) },
                             onDelete = { viewModel.deleteFile(file.id) }
                         )

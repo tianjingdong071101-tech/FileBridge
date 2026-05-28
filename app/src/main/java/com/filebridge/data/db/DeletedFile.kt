@@ -3,14 +3,16 @@ package com.filebridge.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "files")
-data class UploadedFile(
-    @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+@Entity(tableName = "deleted_files")
+data class DeletedFile(
+    @PrimaryKey
+    val originalId: Int,
     val fileName: String,
     val filePath: String,
+    val originalPath: String,
     val fileSize: Long,
     val mimeType: String,
     val fileHash: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long,
+    val deletedAt: Long
 )
