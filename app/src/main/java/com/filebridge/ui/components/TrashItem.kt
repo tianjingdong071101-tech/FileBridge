@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -16,13 +17,20 @@ import com.filebridge.data.db.DeletedFile
 @Composable
 fun TrashItem(
     file: DeletedFile,
-    isDuplicateWithActive: Boolean,
-    isDuplicateInTrash: Boolean,
+    duplicateWithActiveTargetId: Int?,
+    duplicateWithActiveColorIndex: Int,
+    duplicateInTrashTargetId: Int?,
+    duplicateInTrashColorIndex: Int,
     onRestore: () -> Unit,
     onPermanentDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+
+    val colors = listOf(
+        Color(0xFFFF6B6B), Color(0xFF4ECDC4), Color(0xFFFFE66D),
+        Color(0xFF95E1D3), Color(0xFFF38181), Color(0xFFAA96DA), Color(0xFFFCBDAD)
+    )
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -60,31 +68,35 @@ fun TrashItem(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    if (isDuplicateWithActive) {
+                    if (duplicateWithActiveTargetId != null) {
                         Spacer(modifier = Modifier.width(6.dp))
+                        val bgColor = colors[duplicateWithActiveColorIndex % colors.size].copy(alpha = 0.2f)
+                        val textColor = colors[duplicateWithActiveColorIndex % colors.size]
                         Surface(
                             shape = MaterialTheme.shapes.extraSmall,
-                            color = MaterialTheme.colorScheme.tertiaryContainer
+                            color = bgColor
                         ) {
                             Text(
-                                text = "与现有重复",
+                                text = "与现有#${duplicateWithActiveTargetId}重复",
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                                color = textColor
                             )
                         }
                     }
-                    if (isDuplicateInTrash) {
+                    if (duplicateInTrashTargetId != null) {
                         Spacer(modifier = Modifier.width(6.dp))
+                        val bgColor = colors[duplicateInTrashColorIndex % colors.size].copy(alpha = 0.2f)
+                        val textColor = colors[duplicateInTrashColorIndex % colors.size]
                         Surface(
                             shape = MaterialTheme.shapes.extraSmall,
-                            color = MaterialTheme.colorScheme.errorContainer
+                            color = bgColor
                         ) {
                             Text(
-                                text = "内部重复",
+                                text = "与#${duplicateInTrashTargetId}重复",
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                                color = textColor
                             )
                         }
                     }

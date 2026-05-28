@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -16,7 +17,8 @@ import com.filebridge.data.db.UploadedFile
 @Composable
 fun FileItem(
     file: UploadedFile,
-    isDuplicate: Boolean,
+    duplicateTargetId: Int?,
+    duplicateColorIndex: Int,
     onCopy: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -59,17 +61,23 @@ fun FileItem(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    if (isDuplicate) {
+                    if (duplicateTargetId != null) {
                         Spacer(modifier = Modifier.width(6.dp))
+                        val colors = listOf(
+                            Color(0xFFFF6B6B), Color(0xFF4ECDC4), Color(0xFFFFE66D),
+                            Color(0xFF95E1D3), Color(0xFFF38181), Color(0xFFAA96DA), Color(0xFFFCBDAD)
+                        )
+                        val bgColor = colors[duplicateColorIndex % colors.size].copy(alpha = 0.2f)
+                        val textColor = colors[duplicateColorIndex % colors.size]
                         Surface(
                             shape = MaterialTheme.shapes.extraSmall,
-                            color = MaterialTheme.colorScheme.tertiaryContainer
+                            color = bgColor
                         ) {
                             Text(
-                                text = "重复",
+                                text = "与#${duplicateTargetId}重复",
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                                color = textColor
                             )
                         }
                     }

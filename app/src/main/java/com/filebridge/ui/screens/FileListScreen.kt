@@ -34,7 +34,6 @@ fun FileListScreen(
 ) {
     val files by viewModel.files.collectAsStateWithLifecycle()
     val serverRunning by viewModel.serverRunning.collectAsStateWithLifecycle()
-    val duplicateHashes by viewModel.duplicateHashes.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -143,7 +142,8 @@ fun FileListScreen(
                     items(files, key = { it.id }) { file ->
                         FileItem(
                             file = file,
-                            isDuplicate = file.fileHash in duplicateHashes,
+                            duplicateTargetId = viewModel.getDuplicateTargetId(file.id, file.fileHash),
+                            duplicateColorIndex = viewModel.getDuplicateColorIndex(file.fileHash),
                             onCopy = { viewModel.copyToClipboard(file.id) },
                             onDelete = { viewModel.deleteFile(file.id) }
                         )

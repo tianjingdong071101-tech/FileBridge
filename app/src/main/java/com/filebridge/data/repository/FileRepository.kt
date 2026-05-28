@@ -116,6 +116,7 @@ class FileRepository @Inject constructor(
         val dbFiles = fileDao.getAllFilesOnce()
         val dbPaths = dbFiles.map { it.filePath }.toSet()
 
+        var nextId = fileDao.getMaxId() + 1
         var imported = 0
         for (file in existingFiles) {
             if (file.absolutePath !in dbPaths) {
@@ -124,7 +125,7 @@ class FileRepository @Inject constructor(
                     val mimeType = getMimeType(name)
                     val hash = computeFileHash(file)
                     val uploadedFile = UploadedFile(
-                        id = 0,
+                        id = nextId,
                         fileName = name,
                         filePath = file.absolutePath,
                         fileSize = file.length(),
@@ -132,8 +133,9 @@ class FileRepository @Inject constructor(
                         fileHash = hash
                     )
                     fileDao.insertFile(uploadedFile)
+                    nextId++
                     imported++
-                    Log.i(TAG, "Imported: $name")
+                    Log.i(TAG, "Imported: $name (id=$nextId)")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to import: ${file.name}", e)
                 }
@@ -202,26 +204,29 @@ class FileRepository @Inject constructor(
         }
     }
 
-    suspend fun getDuplicateHashes(): Set<String> {
+    suspend fun getDuplicateHashes(): Map<String, List<Int>> {
         val files = fileDao.getAllFilesOnce()
-        val hashCounts = files.groupBy { it.fileHash }.filter { it.key.isNotEmpty() && it.value.size > 1 }
-        return hashCounts.keys
+        return files.groupBy { it.fileHash }
+            .filter { it.key.isNotEmpty() && it.value.size > 1 }
+            .mapValues { entry -> entry.value.map { it.id } }
     }
 
-    suspend fun getDeletedDuplicateHashes(): Set<String> {
+    suspend fun getDeletedDuplicateHashes(): Map<String, List<Int>> {
         val deleted = fileDao.getDeletedFilesOnce()
         val activeFiles = fileDao.getAllFilesOnce()
-        val activeHashes = activeFiles.map { it.fileHash }.toSet()
-        return deleted.filter { it.fileHash.isNotEmpty() && it.fileHash in activeHashes }
-            .map { it.fileHash }
-            .toSet()
+        val activeHashMap = activeFiles.groupBy { it.fileHash }
+            .filter { it.key.isNotEmpty() }
+            .mapValues { entry -> entry.value.map { it.id } }
+        return deleted.filter { it.fileHash.isNotEmpty() && it.fileHash in activeHashMap }
+            .groupBy { it.fileHash }
+            .mapValues { entry -> activeHashMap[entry.key]!! }
     }
 
-    suspend fun getTrashInternalDuplicateHashes(): Set<String> {
+    suspend fun getTrashInternalDuplicateHashes(): Map<String, List<Int>> {
         val deleted = fileDao.getDeletedFilesOnce()
         return deleted.groupBy { it.fileHash }
             .filter { it.key.isNotEmpty() && it.value.size > 1 }
-            .keys
+            .mapValues { entry -> entry.value.map { it.originalId } }
     }
 
     private fun computeFileHash(file: File): String {

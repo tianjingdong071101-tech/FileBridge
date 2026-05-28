@@ -50,14 +50,14 @@ class FileViewModel @Inject constructor(
     private val _autoStartEnabled = MutableStateFlow(prefs.getBoolean(KEY_AUTO_START, true))
     val autoStartEnabled: StateFlow<Boolean> = _autoStartEnabled.asStateFlow()
 
-    private val _duplicateHashes = MutableStateFlow<Set<String>>(emptySet())
-    val duplicateHashes: StateFlow<Set<String>> = _duplicateHashes.asStateFlow()
+    private val _duplicateHashes = MutableStateFlow<Map<String, List<Int>>>(emptyMap())
+    val duplicateHashes: StateFlow<Map<String, List<Int>>> = _duplicateHashes.asStateFlow()
 
-    private val _deletedDuplicateHashes = MutableStateFlow<Set<String>>(emptySet())
-    val deletedDuplicateHashes: StateFlow<Set<String>> = _deletedDuplicateHashes.asStateFlow()
+    private val _deletedDuplicateHashes = MutableStateFlow<Map<String, List<Int>>>(emptyMap())
+    val deletedDuplicateHashes: StateFlow<Map<String, List<Int>>> = _deletedDuplicateHashes.asStateFlow()
 
-    private val _trashDuplicateHashes = MutableStateFlow<Set<String>>(emptySet())
-    val trashDuplicateHashes: StateFlow<Set<String>> = _trashDuplicateHashes.asStateFlow()
+    private val _trashDuplicateHashes = MutableStateFlow<Map<String, List<Int>>>(emptyMap())
+    val trashDuplicateHashes: StateFlow<Map<String, List<Int>>> = _trashDuplicateHashes.asStateFlow()
 
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
@@ -225,6 +225,25 @@ class FileViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop HTTP server", e)
         }
+    }
+
+    fun getDuplicateTargetId(fileId: Int, fileHash: String): Int? {
+        val ids = _duplicateHashes.value[fileHash] ?: return null
+        return ids.firstOrNull { it != fileId }
+    }
+
+    fun getDuplicateColorIndex(fileHash: String): Int {
+        return _duplicateHashes.value.keys.indexOf(fileHash)
+    }
+
+    fun getDeletedDuplicateTargetId(originalId: Int, fileHash: String): Int? {
+        val ids = _deletedDuplicateHashes.value[fileHash] ?: return null
+        return ids.firstOrNull { it != originalId }
+    }
+
+    fun getTrashDuplicateTargetId(originalId: Int, fileHash: String): Int? {
+        val ids = _trashDuplicateHashes.value[fileHash] ?: return null
+        return ids.firstOrNull { it != originalId }
     }
 
     fun clearToast() {
