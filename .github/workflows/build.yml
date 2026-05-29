@@ -32,6 +32,23 @@ jobs:
     - name: Build Debug APK
       run: ./gradlew assembleDebug
 
+    - name: Sign APK
+      run: |
+        APK="app/build/outputs/apk/debug/app-debug.apk"
+        APKSIGNER=$(find /usr/local/lib/android/sdk/build-tools -name apksigner -type f 2>/dev/null | head -1)
+        echo "Found apksigner: $APKSIGNER"
+        "$APKSIGNER" sign \
+          --ks ~/.android/debug.keystore \
+          --ks-pass pass:android \
+          --ks-key-alias androiddebugkey \
+          --key-pass pass:android \
+          --v1-signing-enabled true \
+          --v2-signing-enabled true \
+          --v3-signing-enabled true \
+          "$APK"
+        echo "APK signed successfully"
+        "$APKSIGNER" verify --print-certs "$APK" || true
+
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
