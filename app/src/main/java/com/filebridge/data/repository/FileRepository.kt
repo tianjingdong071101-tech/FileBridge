@@ -71,10 +71,21 @@ class FileRepository @Inject constructor(
             Log.e(TAG, "Failed to restore file from trash")
             return false
         }
+        var restoreId = deleted.originalId
+        var restorePath = deleted.originalPath
+        if (fileDao.getFileById(restoreId) != null) {
+            restoreId = fileDao.getMaxId() + 1
+            val restoredFile = File(deleted.originalPath)
+            val newName = "${restoreId}_${deleted.fileName}"
+            val newFile = File(restoredFile.parentFile, newName)
+            restoredFile.renameTo(newFile)
+            restorePath = newFile.absolutePath
+            Log.i(TAG, "Restored file with new ID: ${deleted.originalId} -> $restoreId")
+        }
         val restored = UploadedFile(
-            id = deleted.originalId,
+            id = restoreId,
             fileName = deleted.fileName,
-            filePath = deleted.originalPath,
+            filePath = restorePath,
             fileSize = deleted.fileSize,
             mimeType = deleted.mimeType,
             fileHash = deleted.fileHash,
@@ -162,37 +173,51 @@ class FileRepository @Inject constructor(
         val trashFiles = trashDir.listFiles()?.filter { it.isFile } ?: return
         val dbDeleted = fileDao.getDeletedFilesOnce()
         val dbDeletedPaths = dbDeleted.map { it.filePath }.toSet()
+        val existingOriginalIds = dbDeleted.map { it.originalId }.toMutableSet()
+        var nextId = fileDao.getMaxId() + 1
 
         var imported = 0
         for (file in trashFiles) {
             if (file.absolutePath in dbDeletedPaths) continue
 
             try {
-                val fullName = file.name
-                // 解析 originalId: 文件名格式为 {id}_{originalFileName}
-                // id 是纯数字，originalName 可能包含 _
+                var actualFile = file
+                val fullName = actualFile.name
                 var idEnd = 0
                 while (idEnd < fullName.length && fullName[idEnd].isDigit()) {
                     idEnd++
                 }
                 if (idEnd == 0 || idEnd >= fullName.length || fullName[idEnd] != '_') continue
 
-                val originalId = fullName.substring(0, idEnd).toIntOrNull() ?: continue
+                var originalId = fullName.substring(0, idEnd).toIntOrNull() ?: continue
                 val originalName = fullName.substring(idEnd + 1)
-                val originalPath = "${FileStorageManager.DEFAULT_DIR}/${originalName}"
+                var originalPath = "${FileStorageManager.DEFAULT_DIR}/${originalName}"
+
+                if (originalId in existingOriginalIds) {
+                    originalId = nextId
+                    nextId++
+                    existingOriginalIds.add(originalId)
+                    val newName = "${originalId}_${originalName}"
+                    val newFile = File(trashDir, newName)
+                    actualFile.renameTo(newFile)
+                    actualFile = newFile
+                    Log.i(TAG, "Reassigned trash file originalId: $fullName -> $newName")
+                }
+                existingOriginalIds.add(originalId)
+
                 val mimeType = getMimeType(originalName)
-                val hash = computeFileHash(file)
+                val hash = computeFileHash(actualFile)
 
                 val deletedFile = DeletedFile(
                     originalId = originalId,
                     fileName = originalName,
-                    filePath = file.absolutePath,
+                    filePath = actualFile.absolutePath,
                     originalPath = originalPath,
-                    fileSize = file.length(),
+                    fileSize = actualFile.length(),
                     mimeType = mimeType,
                     fileHash = hash,
-                    createdAt = file.lastModified(),
-                    deletedAt = file.lastModified()
+                    createdAt = actualFile.lastModified(),
+                    deletedAt = actualFile.lastModified()
                 )
                 fileDao.insertDeletedFile(deletedFile)
                 imported++
