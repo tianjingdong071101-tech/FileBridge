@@ -18,36 +18,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Create debug keystore
-      run: |
-        mkdir -p ~/.android
-        keytool -genkey -v -keystore ~/.android/debug.keystore \
-          -storepass android -alias androiddebugkey -keypass android \
-          -keyalg RSA -keysize 2048 -validity 10000 \
-          -dname "CN=Android Debug,O=Android,C=US"
-
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
     - name: Build Debug APK
       run: ./gradlew assembleDebug
-
-    - name: Find and sign APK
-      run: |
-        APK="app/build/outputs/apk/debug/app-debug.apk"
-        APKSIGNER=$(find /usr/local/lib/android/sdk/build-tools -name apksigner -type f 2>/dev/null | head -1)
-        if [ -n "$APKSIGNER" ]; then
-          echo "Using apksigner: $APKSIGNER"
-          "$APKSIGNER" sign --ks ~/.android/debug.keystore \
-            --ks-pass pass:android --ks-key-alias androiddebugkey \
-            --key-pass pass:android "$APK"
-        else
-          echo "apksigner not found, using jarsigner"
-          jarsigner -verbose -keystore ~/.android/debug.keystore \
-            -storepass android -keypass android \
-            -signedjar "$APK" "$APK" androiddebugkey
-        fi
-        echo "APK signed successfully"
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
