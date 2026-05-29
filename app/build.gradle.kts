@@ -19,7 +19,7 @@ android {
     }
 
     signingConfigs {
-        create("debug") {
+        create("ci-debug") {
             storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
@@ -33,7 +33,7 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("ci-debug")
         }
     }
 
