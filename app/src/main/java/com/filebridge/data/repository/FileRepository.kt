@@ -43,13 +43,17 @@ class FileRepository @Inject constructor(
 
     suspend fun deleteFile(id: Int): Boolean {
         val file = fileDao.getFileById(id) ?: return false
-        val trashPath = storageManager.moveToTrash(file.filePath, id)
+        var trashId = file.id
+        if (fileDao.countDeletedByOriginalId(trashId) > 0) {
+            trashId = fileDao.getMaxId() + 1
+        }
+        val trashPath = storageManager.moveToTrash(file.filePath, trashId)
         if (trashPath == null) {
             Log.e(TAG, "Failed to move file to trash, aborting delete")
             return false
         }
         val deletedFile = DeletedFile(
-            originalId = file.id,
+            originalId = trashId,
             fileName = file.fileName,
             filePath = trashPath,
             originalPath = file.filePath,
@@ -61,6 +65,7 @@ class FileRepository @Inject constructor(
         )
         fileDao.insertDeletedFile(deletedFile)
         fileDao.deleteFile(id)
+        Log.i(TAG, "Deleted file #$id -> trash originalId=$trashId")
         return true
     }
 

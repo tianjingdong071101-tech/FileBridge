@@ -36,6 +36,9 @@ interface FileDao {
     @Query("SELECT * FROM deleted_files WHERE id = :id")
     suspend fun getDeletedFileById(id: Int): DeletedFile?
 
+    @Query("SELECT COUNT(*) FROM deleted_files WHERE originalId = :originalId")
+    suspend fun countDeletedByOriginalId(originalId: Int): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDeletedFile(file: DeletedFile)
 
