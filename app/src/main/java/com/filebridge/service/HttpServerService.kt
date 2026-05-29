@@ -117,6 +117,61 @@ class HttpServerService : Service() {
                         }
                     }
 
+                    get("/files/trash") {
+                        try {
+                            val files = fileDao.getDeletedFilesOnce()
+                            val response = files.map { file ->
+                                TrashFileResponse(
+                                    id = file.id,
+                                    originalId = file.originalId,
+                                    fileName = file.fileName,
+                                    fileSize = file.fileSize,
+                                    mimeType = file.mimeType,
+                                    originalPath = file.originalPath,
+                                    deletedAt = file.deletedAt
+                                )
+                            }
+                            call.respond(response)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error listing trash files", e)
+                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                        }
+                    }
+
+                    post("/files/{id}/restore") {
+                        try {
+                            val id = call.parameters["id"]?.toIntOrNull()
+                            if (id == null) {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid ID"))
+                                return@post
+                            }
+                            val success = repository.restoreFile(id)
+                            if (success) {
+                                call.respond(mapOf("success" to true))
+                            } else {
+                                call.respond(HttpStatusCode.NotFound, mapOf("error" to "File not found in trash"))
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error restoring file", e)
+                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                        }
+                    }
+
+                    delete("/files/trash/{id}") {
+                        try {
+                            val id = call.parameters["id"]?.toIntOrNull()
+                            if (id == null) {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid ID"))
+                                return@delete
+                            }
+                            repository.permanentlyDeleteFile(id)
+                            call.respond(mapOf("success" to true))
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error permanently deleting file", e)
+                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                        }
+                    }
+
                     get("/files/{id}") {
                         try {
                             val id = call.parameters["id"]?.toIntOrNull()
@@ -277,5 +332,16 @@ class HttpServerService : Service() {
         val id: Int,
         val fileName: String,
         val termuxPath: String
+    )
+
+    @Serializable
+    data class TrashFileResponse(
+        val id: Int,
+        val originalId: Int,
+        val fileName: String,
+        val fileSize: Long,
+        val mimeType: String,
+        val originalPath: String,
+        val deletedAt: Long
     )
 }

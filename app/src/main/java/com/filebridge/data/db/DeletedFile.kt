@@ -5,7 +5,8 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "deleted_files")
 data class DeletedFile(
-    @PrimaryKey
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
     val originalId: Int,
     val fileName: String,
     val filePath: String,

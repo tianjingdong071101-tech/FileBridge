@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.filebridge.data.db.AppDatabase
 import com.filebridge.data.db.AppDatabase.Companion.MIGRATION_1_2
+import com.filebridge.data.db.AppDatabase.Companion.MIGRATION_2_3
 import com.filebridge.data.db.FileDao
 import dagger.Module
 import dagger.Provides
@@ -24,7 +25,7 @@ object AppModule {
             AppDatabase::class.java,
             "filebridge.db"
         )
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .fallbackToDestructiveMigration()
             .build()
     }

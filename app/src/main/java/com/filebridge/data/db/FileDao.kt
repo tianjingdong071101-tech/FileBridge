@@ -33,13 +33,13 @@ interface FileDao {
     @Query("SELECT * FROM deleted_files ORDER BY deletedAt DESC")
     suspend fun getDeletedFilesOnce(): List<DeletedFile>
 
-    @Query("SELECT * FROM deleted_files WHERE originalId = :id")
+    @Query("SELECT * FROM deleted_files WHERE id = :id")
     suspend fun getDeletedFileById(id: Int): DeletedFile?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDeletedFile(file: DeletedFile)
 
-    @Query("DELETE FROM deleted_files WHERE originalId = :id")
+    @Query("DELETE FROM deleted_files WHERE id = :id")
     suspend fun permanentlyDeleteFile(id: Int)
 
     @Query("DELETE FROM deleted_files")

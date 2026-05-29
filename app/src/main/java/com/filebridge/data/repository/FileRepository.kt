@@ -120,20 +120,25 @@ class FileRepository @Inject constructor(
             if (file.absolutePath !in dbPaths) {
                 try {
                     val name = file.name
-                    val mimeType = getMimeType(name)
-                    val hash = computeFileHash(file)
+                    val originalName = name.substringAfter('_')
+                    val newName = "${nextId}_${originalName}"
+                    val newFile = File(dir, newName)
+                    file.renameTo(newFile)
+
+                    val mimeType = getMimeType(originalName)
+                    val hash = computeFileHash(newFile)
                     val uploadedFile = UploadedFile(
                         id = nextId,
-                        fileName = name,
-                        filePath = file.absolutePath,
-                        fileSize = file.length(),
+                        fileName = originalName,
+                        filePath = newFile.absolutePath,
+                        fileSize = newFile.length(),
                         mimeType = mimeType,
                         fileHash = hash
                     )
                     fileDao.insertFile(uploadedFile)
                     nextId++
                     imported++
-                    Log.i(TAG, "Imported: $name (id=$nextId)")
+                    Log.i(TAG, "Imported: $originalName (id=$nextId)")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to import: ${file.name}", e)
                 }
@@ -177,10 +182,6 @@ class FileRepository @Inject constructor(
                 val originalPath = "${FileStorageManager.DEFAULT_DIR}/${originalName}"
                 val mimeType = getMimeType(originalName)
                 val hash = computeFileHash(file)
-
-                // 检查是否已存在同 ID 的记录
-                val existingDeleted = fileDao.getDeletedFileById(originalId)
-                if (existingDeleted != null) continue
 
                 val deletedFile = DeletedFile(
                     originalId = originalId,

@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [UploadedFile::class, DeletedFile::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +30,32 @@ abstract class AppDatabase : RoomDatabase() {
                         deletedAt INTEGER NOT NULL
                     )
                 """.trimIndent())
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS deleted_files_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        originalId INTEGER NOT NULL,
+                        fileName TEXT NOT NULL,
+                        filePath TEXT NOT NULL,
+                        originalPath TEXT NOT NULL,
+                        fileSize INTEGER NOT NULL,
+                        mimeType TEXT NOT NULL,
+                        fileHash TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL,
+                        deletedAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO deleted_files_new (originalId, fileName, filePath, originalPath, fileSize, mimeType, fileHash, createdAt, deletedAt)
+                    SELECT originalId, fileName, filePath, originalPath, fileSize, mimeType, fileHash, createdAt, deletedAt
+                    FROM deleted_files
+                """.trimIndent())
+                db.execSQL("DROP TABLE deleted_files")
+                db.execSQL("ALTER TABLE deleted_files_new RENAME TO deleted_files")
             }
         }
     }

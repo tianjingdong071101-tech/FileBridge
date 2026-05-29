@@ -78,15 +78,15 @@ fun TrashScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(deletedFiles, key = { it.originalId }) { file ->
+                items(deletedFiles, key = { it.id }) { file ->
                     TrashItem(
                         file = file,
                         duplicateWithActiveTargetId = viewModel.getDeletedDuplicateTargetId(file.originalId, file.fileHash),
                         duplicateWithActiveColorIndex = viewModel.getDeletedDuplicateColorIndex(file.fileHash),
                         duplicateInTrashTargetId = viewModel.getTrashDuplicateTargetId(file.originalId, file.fileHash),
                         duplicateInTrashColorIndex = viewModel.getTrashDuplicateColorIndex(file.fileHash),
-                        onRestore = { viewModel.restoreFile(file.originalId) },
-                        onPermanentDelete = { viewModel.permanentlyDeleteFile(file.originalId) }
+                        onRestore = { viewModel.restoreFile(file.id) },
+                        onPermanentDelete = { viewModel.permanentlyDeleteFile(file.id) }
                     )
                 }
             }
